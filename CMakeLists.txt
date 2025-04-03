@@ -1,0 +1,19 @@
+if(NOT CMAKE_BUILD_TYPE )
+        set(CMAKE_BUILD_TYPE Release)
+endif()
+
+
+if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_SOURCE_DIR}")
+	set(CMAKE_CXX_STANDARD 20)
+	cmake_minimum_required(VERSION 3.5)
+	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
+	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
+	set(CMAKE_EXECUTABLE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
+endif()
+
+project(DefaultIOTest)
+add_executable(DefaultIOTest DefaultIOTest.cpp)
+
+project(SmartIOTest)
+add_executable(SmartIOTest SmartIOTest.cpp)
+
