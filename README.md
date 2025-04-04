@@ -1,7 +1,5 @@
 # Mastering I/O Efficiency in C++ with Custom Buffered Readers and Writers
 
-[...Previous sections remain unchanged...]
-
 ## Putting It All Together  
 Imagine a real-world scenario: streaming log data from a server to a file. `SyncIOReadBuffer` could read incoming network packets, while `SyncIOLazyWriteBuffer` batches and writes them to disk. This duo reduces system calls on both ends, ensuring smooth, efficient data flow.
 
