@@ -217,7 +217,7 @@ Command: Both programs were run with input redirected from input.txt and output 
 Each implementation was executed 100 times, and the average runtime was calculated based on the duration printed at the end of each run.
 
 #### Results:
-Default I/O (std::cin/std::cout): Average runtime over 100 runs: 0.470058 seconds.
+Default I/O (std::cin/std::cout): Average runtime over 100 runs: 0.470058 seconds.<br>
 Buffered I/O (SyncIOReadBuffer/SyncIOLazyWriteBuffer with 1 KB buffer): Average runtime over 100 runs: 0.0537578 seconds.
 
 #### Speedup:
