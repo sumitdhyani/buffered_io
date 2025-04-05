@@ -2,14 +2,20 @@
 A custom C++ library for optimizing I/O operations using `SyncIOReadBuffer` and `SyncIOLazyWriteBuffer` classes.
 
 ## Features
-- Circular buffer-based I/O
-- Lazy write batching
-- Configurable buffer size
+-   Circular buffer-based I/O
+-   Lazy write batching
+-   Configurable buffer size
 
+## Prerequisites
+    
+    The necessary libs should be there 
+-   
 ## Build & Run
 - **Prerequisites:**
-    -   C++11+, g++/clang compiler(MsBuild), CMake 3.5+
-- **Build with CMake:**
+    -   C++20+, g++/clang compiler(MsBuild), CMake 3.5+
+    -   **For UnitTests:**
+        -   Googletest should be built/installed on the machine
+-   **Build with CMake:**
     ### Linux:
     ```bash
         mkdir build
@@ -22,10 +28,9 @@ A custom C++ library for optimizing I/O operations using `SyncIOReadBuffer` and 
         mkdir build
         cd build
         cmake ..
-        MsBuild.exe DefaultIOTest.vcxproj /p:configuration=release
-        MsBuild.exe SmartIOTest.vcxproj /p:configuration=release
+        MsBuild.exe Project.sln /p:configuration=release
     ```
-- **Run:**
+-   **Run:**
     ### Linux:
     ```bash
     ./SmartIOTest 1024 < ../input.txt > SmartIOTestResult.txt
@@ -47,4 +52,4 @@ Tested with 100k test cases (1 KB buffer):
 **Machine:**        Intel i5-7300U, 8GB RAM, Windows 10 Pro
 
 ## Details
-Read the full article(TECHNICAL_DETAILS.md)  for implementation details, examples, and limitations.
+Read the full article(docs/TECHNICAL_DETAILS.md)  for implementation details, examples, and limitations.
