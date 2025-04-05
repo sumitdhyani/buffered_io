@@ -102,10 +102,6 @@ This shows how data stays in the buffer until flushed, optimizing write operatio
 -   Memory Efficiency: Circular buffers reuse memory without frequent allocations, keeping resource usage low.
 -   Streaming Support: Perfect for continuous data flows, like video streaming or real-time logging.
 -   Flexibility: Templated size types and functional callbacks make them adaptable to various use cases.
--   Limitations to Consider
--   Thread Safety: Neither class is thread-safe by default. If multiple threads access them, you’ll need to add synchronization (e.g., mutexes).
--   Latency Trade-Off: Buffering can introduce slight delays, which might matter in ultra-low-latency scenarios.
--   Error Handling: They don’t handle I/O errors natively—you’d need a wrapper or additional logic for robustness.
 
 ## Putting It All Together
 Imagine a real-world scenario: streaming log data from a server to a file. `SyncIOReadBuffer` could read incoming network packets, while `SyncIOLazyWriteBuffer` batches and writes them to disk. This duo reduces system calls on both ends, ensuring smooth, efficient data flow.
