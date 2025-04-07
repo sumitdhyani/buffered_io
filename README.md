@@ -6,10 +6,6 @@ A custom C++ library for optimizing I/O operations using `SyncIOReadBuffer` and 
 -   Lazy write batching
 -   Configurable buffer size
 
-## Prerequisites
-    
-    The necessary libs should be there 
--   
 ## Build & Run
 - **Prerequisites:**
     -   C++20+, g++/clang compiler(MsBuild), CMake 3.5+
