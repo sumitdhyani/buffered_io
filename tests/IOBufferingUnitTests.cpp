@@ -175,6 +175,21 @@ TEST_F(BufferTest, PerformanceComparison)
   EXPECT_GT(speedup, 1.0); // Expect some speedup
 }
 
+TEST_F(BufferTest, ReadSizeGreaterThanBufferSize)
+{
+  mockInput = "HelloWorld";
+  SyncIOReadBuffer<uint32_t> buffer(5);
+  char output[10];
+  uint32_t bytesRead = buffer.read(output,
+                                   10,
+                                   [this](char *out, uint32_t len) 
+                                   { return mockReader(out, len); });
+
+  
+  EXPECT_EQ(bytesRead, 10);
+  EXPECT_EQ(strncmp(output, mockInput.c_str(), 10), 0);
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

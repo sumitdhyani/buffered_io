@@ -57,7 +57,17 @@ struct SyncIOReadBuffer
       else
       {
         copy(out, occBytes);
-        ret = occBytes + read(out + occBytes, len - occBytes, ioInterface);
+        ret = occBytes;
+
+        while (ret < len && paste(ioInterface))
+        {
+          // if remaining length to copy, i.e, len - ret <= occupiedBytes(),
+          // then copy only the remaining Len, otherwise copy all the occupied
+          // bytes and continue
+          uint32_t toCopy = std::min(occupiedBytes(), len - ret);
+          copy(out + ret, toCopy);
+          ret += toCopy;
+        }
       }
     }
 
