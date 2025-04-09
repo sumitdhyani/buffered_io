@@ -121,10 +121,31 @@ TEST_F(BufferTest, WriteAndFlush)
   SyncIOLazyWriteBuffer<uint32_t> buffer(10, [this](char *buf, uint32_t len)
                                          { return mockWriter(buf, len); });
   const char *data = "Hello";
+  
   buffer.write(data, strlen(data));
   EXPECT_EQ(smartOutput, "");
+  
   buffer.flush();
   EXPECT_EQ(smartOutput, "Hello");
+}
+
+TEST_F(BufferTest, WriteUntilFlushed)
+{
+  SyncIOLazyWriteBuffer<uint32_t> buffer(12, [this](char *buf, uint32_t len)
+                                         { return mockWriter(buf, len); });
+  const char *data = "Hello!";
+
+  buffer.write(data, strlen(data));
+  EXPECT_EQ(smartOutput, "");
+
+  buffer.write(data, strlen(data));
+  EXPECT_EQ(smartOutput, "");
+
+  buffer.write(data, strlen(data));
+  EXPECT_EQ(smartOutput, "Hello!Hello!");
+
+  buffer.flush();
+  EXPECT_EQ(smartOutput, "Hello!Hello!Hello!");
 }
 
 // Performance Tests
