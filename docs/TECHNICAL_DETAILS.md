@@ -243,9 +243,6 @@ SyncIOReadBuffer and SyncIOLazyWriteBuffer are powerful tools for mastering I/O 
 So, next time you’re tackling a performance-critical I/O problem in C++, give these classes a spin. Experiment with buffer sizes, test them against your own workloads, and share your results with the community. Happy coding!
 
 ## Limitations/shortfalls to consider:
--   Recursive methods:
-    -   The "read" method is recursive, it can potentially cause stack overflow when the read size is several
-        size the buffer size
 -   Error Handling:
     -   They don’t handle I/O errors natively—you’d need a wrapper or additional logic for robustness.The client code functions has to kake care if the IOInterface throws/returns errors.
    That may lead to addtional effort to handle errors
