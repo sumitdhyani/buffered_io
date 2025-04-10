@@ -116,6 +116,23 @@ TEST_F(BufferTest, ReadUntilNewline)
   EXPECT_EQ(result, "3\n");
 }
 
+TEST_F(BufferTest, ReadUntilNewline_WithPredicate)
+{
+  SyncIOReadBuffer<uint32_t> buffer(10);
+  char output[20];
+  uint32_t bytesRead = buffer.readUntil(output,
+    
+                                        [this](char *out, uint32_t len)
+                                        { return mockReader(out, len); },
+                                        
+                                        [](const char& ch)
+                                        { return ch == '\n'; });
+
+  std::string result(output, bytesRead);
+  EXPECT_EQ(bytesRead, 2); // "3\n" is 2 chars
+  EXPECT_EQ(result, "3\n");
+}
+
 TEST_F(BufferTest, WriteAndFlush)
 {
   SyncIOLazyWriteBuffer<uint32_t> buffer(10, [this](char *buf, uint32_t len)
@@ -203,6 +220,19 @@ TEST_F(BufferTest, ReadUntilSizeGreaterThanBufferSize)
   EXPECT_EQ(strncmp(output, mockInput.c_str(), sizeof(output)), 0);
 }
 
+TEST_F(BufferTest, ReadUntilSizeGreaterThanBufferSize_WithPredicate)
+{
+  mockInput = "Hello!World";
+  SyncIOReadBuffer<uint32_t> buffer(5);
+  char output[6];
+  uint32_t bytesRead = buffer.readUntil(output, [this](char *out, uint32_t len)
+                                        { return mockReader(out, len); },
+                                         [](const char& ch) { return ch == '!'; });
+
+  EXPECT_EQ(bytesRead, sizeof(output));
+  EXPECT_EQ(strncmp(output, mockInput.c_str(), sizeof(output)), 0);
+}
+
 TEST_F(BufferTest, ReadUntilAndEnderNotFound)
 {
   mockInput = "HelloWorld";
@@ -212,6 +242,21 @@ TEST_F(BufferTest, ReadUntilAndEnderNotFound)
                                         [this](char *out, uint32_t len)
                                         { return mockReader(out, len); },
                                         '!');
+
+  EXPECT_EQ(bytesRead, mockInput.length());
+  EXPECT_EQ(strncmp(output, mockInput.c_str(), mockInput.length()), 0);
+}
+
+TEST_F(BufferTest, ReadUntilAndEnderNotFound_WithPredicate)
+{
+  mockInput = "HelloWorld";
+  SyncIOReadBuffer<uint32_t> buffer(5);
+  char output[12];
+  uint32_t bytesRead = buffer.readUntil(output,
+                                        [this](char *out, uint32_t len)
+                                        { return mockReader(out, len); },
+                                        [](const char &ch)
+                                        { return ch == '!'; });
 
   EXPECT_EQ(bytesRead, mockInput.length());
   EXPECT_EQ(strncmp(output, mockInput.c_str(), mockInput.length()), 0);

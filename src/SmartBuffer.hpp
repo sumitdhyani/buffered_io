@@ -148,7 +148,6 @@ struct SyncIOReadBuffer
                      const std::function<bool(const char &)> &ender)
   {
     SizeType ret = 0;
-    SizeType offset = 0;
     SizeType occBytes = occupiedBytes();
     if (!occBytes)
     {
@@ -157,35 +156,31 @@ struct SyncIOReadBuffer
 
     if (occBytes)
     {
-      for (;
-           offset < occBytes && !ender(m_readBuff[(m_tail + offset) % m_size]);
-           ++offset)
-        ;
-
+      auto len = findLengthTill(ender);
       // Found ender
-      if (ender == m_readBuff[(m_tail + offset) % m_size])
+      if (len)
       {
-        copy(out, offset + 1);
-        ret = offset + 1;
+        copy(out, *len);
+        ret = *len;
       }
       // Didn't find the ender
       else
       {
-        copy(out, occBytes);
         // Source the data from IO Interface
-        if (SizeType bytesPasted = paste(ioInterface);
-            bytesPasted) // Non-zero no. of bytes read
+        do
         {
-          ret = readUntil(out + occBytes, ioInterface, ender);
-        }
-        else // EOF reached, but there's still some data in the buffer
+          occBytes = occupiedBytes();
+          copy(out + ret, occBytes);
+          ret += occBytes;
+        } while (paste(ioInterface) && !(len = findLengthTill(ender)));
+
+        if (len)
         {
-          ret = occupiedBytes();
-          copy(out, ret);
+          copy(out + ret, *len);
+          ret += *len;
         }
       }
     }
-
 
     return ret;
   }
@@ -199,6 +194,25 @@ struct SyncIOReadBuffer
      for (;
           offset < occBytes && ender != m_readBuff[(m_tail + offset) % m_size];
           ++offset);
+
+    if (offset < occBytes)
+    {
+      ret = offset + 1;
+    }
+
+    return ret;
+  }
+
+  std::optional<SizeType> findLengthTill(const std::function<bool(const char&)>& ender)
+  {
+    std::optional<SizeType> ret;
+    SizeType occBytes = occupiedBytes();
+
+    SizeType offset = 0;
+    for (;
+         offset < occBytes && !ender(m_readBuff[(m_tail + offset) % m_size]);
+         ++offset)
+      ;
 
     if (offset < occBytes)
     {
