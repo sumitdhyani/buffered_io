@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <optional>
 #include <string.h>
 
 // SizeType should be an unsigned integral type
@@ -92,7 +93,6 @@ struct SyncIOReadBuffer
                      const char &ender)
   {
     SizeType ret = 0;
-    SizeType offset = 0;
     SizeType occBytes = occupiedBytes();
     if (!occBytes)
     {
@@ -101,26 +101,28 @@ struct SyncIOReadBuffer
 
     if (occBytes)
     {
-      for (;
-           offset < occBytes && m_readBuff[(m_tail + offset) % m_size] != ender;
-           ++offset);
-
+      auto len = findLengthTill(ender);
       // Found ender
-      if (ender == m_readBuff[(m_tail + offset) % m_size])
+      if (len)
       {
-        copy(out, offset + 1);
-        ret = offset + 1;
+        copy(out, *len);
+        ret = *len;
       }
       // Didn't find the ender
       else
       {
-        copy(out, occBytes);
-        ret = occBytes;
         // Source the data from IO Interface
-        if (paste(ioInterface))
+        do
         {
-           // Non-zero no. of bytes read from interface
-          ret += readUntil(out + occBytes, ioInterface, ender);
+          occBytes = occupiedBytes();
+          copy(out + ret, occBytes);
+          ret += occBytes;
+        } while (paste(ioInterface) && !(len = findLengthTill(ender)));
+
+        if (len)
+        {
+          copy(out + ret, *len);
+          ret += *len;
         }
       }
     }
@@ -184,6 +186,24 @@ struct SyncIOReadBuffer
       }
     }
 
+
+    return ret;
+  }
+
+  std::optional<SizeType> findLengthTill(const char& ender)
+  {
+    std::optional<SizeType> ret;
+    SizeType occBytes = occupiedBytes();
+
+    SizeType offset = 0;
+     for (;
+          offset < occBytes && ender != m_readBuff[(m_tail + offset) % m_size];
+          ++offset);
+
+    if (offset < occBytes)
+    {
+      ret = offset + 1;
+    }
 
     return ret;
   }
