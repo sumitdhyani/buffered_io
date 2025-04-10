@@ -181,13 +181,40 @@ TEST_F(BufferTest, ReadSizeGreaterThanBufferSize)
   SyncIOReadBuffer<uint32_t> buffer(5);
   char output[10];
   uint32_t bytesRead = buffer.read(output,
-                                   10,
-                                   [this](char *out, uint32_t len) 
+                                   sizeof(output),
+                                   [this](char *out, uint32_t len)
                                    { return mockReader(out, len); });
 
-  
-  EXPECT_EQ(bytesRead, 10);
-  EXPECT_EQ(strncmp(output, mockInput.c_str(), 10), 0);
+  EXPECT_EQ(bytesRead, sizeof(output));
+  EXPECT_EQ(strncmp(output, mockInput.c_str(), sizeof(output)), 0);
+}
+
+TEST_F(BufferTest, ReadUntilSizeGreaterThanBufferSize)
+{
+  mockInput = "Hello!World";
+  SyncIOReadBuffer<uint32_t> buffer(5);
+  char output[6];
+  uint32_t bytesRead = buffer.readUntil(output,
+                                        [this](char *out, uint32_t len)
+                                        { return mockReader(out, len); },
+                                        '!');
+
+  EXPECT_EQ(bytesRead, sizeof(output));
+  EXPECT_EQ(strncmp(output, mockInput.c_str(), sizeof(output)), 0);
+}
+
+TEST_F(BufferTest, ReadUntilAndEnderNotFound)
+{
+  mockInput = "HelloWorld";
+  SyncIOReadBuffer<uint32_t> buffer(5);
+  char output[12];
+  uint32_t bytesRead = buffer.readUntil(output,
+                                        [this](char *out, uint32_t len)
+                                        { return mockReader(out, len); },
+                                        '!');
+
+  EXPECT_EQ(bytesRead, mockInput.length());
+  EXPECT_EQ(strncmp(output, mockInput.c_str(), mockInput.length()), 0);
 }
 
 int main(int argc, char **argv)

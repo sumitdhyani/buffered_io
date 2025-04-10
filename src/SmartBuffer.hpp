@@ -103,8 +103,7 @@ struct SyncIOReadBuffer
     {
       for (;
            offset < occBytes && m_readBuff[(m_tail + offset) % m_size] != ender;
-           ++offset)
-        ;
+           ++offset);
 
       // Found ender
       if (ender == m_readBuff[(m_tail + offset) % m_size])
@@ -116,16 +115,12 @@ struct SyncIOReadBuffer
       else
       {
         copy(out, occBytes);
+        ret = occBytes;
         // Source the data from IO Interface
-        if (SizeType bytesPasted = paste(ioInterface);
-            bytesPasted > 0) // Non-zero no. of bytes read
+        if (paste(ioInterface))
         {
-          ret = readUntil(out + occBytes, ioInterface, ender);
-        }
-        else // EOF reached, but there's still some data in the buffer
-        {
-          ret = occupiedBytes();
-          copy(out, ret);
+           // Non-zero no. of bytes read from interface
+          ret += readUntil(out + occBytes, ioInterface, ender);
         }
       }
     }
@@ -188,6 +183,7 @@ struct SyncIOReadBuffer
         }
       }
     }
+
 
     return ret;
   }
