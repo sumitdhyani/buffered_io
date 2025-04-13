@@ -258,5 +258,18 @@ So, next time you’re tackling a performance-critical I/O problem in C++, give 
                    This is fine for applications like file transfer etc., but can impact real-time applications like audio/video streamimng.
                    The user of this call can mitigate this by regularly calling **flush()** methi\od when the buffer has reached certain size
 
+## Next steps:
+-   Code new classes for doing Buffered IO with asynchronous IO Interfaces.
+
 ## Github:
+-   **Complete repo:<br>**
     https://github.com/sumitdhyani/buffered_io.git
+    
+-   **Code for classes "SyncIOReadBuffer" and "SyncIOLazyWriteBuffer"<br>**
+    https://github.com/sumitdhyani/buffered_io/blob/main/src/SmartBuffer.hpp
+
+-   **Code for comparative tests between default and bufered IO**
+    -   Default IO:<br>
+        https://github.com/sumitdhyani/buffered_io/blob/main/src/SmartIOTest.cpp
+    -   Buffered IO:<br>
+        https://github.com/sumitdhyani/buffered_io/blob/main/src/SmartIOTest.cpp
