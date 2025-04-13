@@ -448,7 +448,7 @@ private:
 template <class SizeType>
 struct SyncIOLazyWriteBuffer
 {
-  typedef std::function<SizeType(char *, const SizeType &)> DataWriter;
+  typedef std::function<SizeType(char *, const SizeType &)> IOInterface;
   enum class LastOperation
   {
     FLUSH,
@@ -456,11 +456,11 @@ struct SyncIOLazyWriteBuffer
     NONE
   };
 
-  SyncIOLazyWriteBuffer(const SizeType &size, const DataWriter &dataWriter) : m_outBuff(reinterpret_cast<char *>(malloc(size))),
+  SyncIOLazyWriteBuffer(const SizeType &size, const IOInterface &dataWriter) : m_outBuff(reinterpret_cast<char *>(malloc(size))),
                                                                               m_tail(0),
                                                                               m_head(0),
                                                                               m_size(size),
-                                                                              m_dataWriter(dataWriter),
+                                                                              m_ioInterface(dataWriter),
                                                                               m_lastOperation(LastOperation::NONE)
   {}
 
@@ -495,15 +495,15 @@ struct SyncIOLazyWriteBuffer
     SizeType ret = 0;
     if (m_tail < m_head)
     {
-      ret = m_dataWriter(m_outBuff + m_tail, occupiedBytes());
+      ret = m_ioInterface(m_outBuff + m_tail, occupiedBytes());
       m_tail += ret;
     }
     else
     {
       SizeType lengthTillEnd = m_size - m_tail;
-      if (ret = m_dataWriter(m_outBuff + m_tail, lengthTillEnd) == lengthTillEnd)
+      if (ret = m_ioInterface(m_outBuff + m_tail, lengthTillEnd) == lengthTillEnd)
       {
-        m_tail = m_dataWriter(m_outBuff, m_head);
+        m_tail = m_ioInterface(m_outBuff, m_head);
         ret += m_tail;
       }
     }
@@ -580,7 +580,7 @@ private:
   }
 
   LastOperation m_lastOperation;
-  const DataWriter m_dataWriter;
+  const IOInterface m_ioInterface;
   SizeType m_tail;
   SizeType m_head;
   const SizeType m_size;
