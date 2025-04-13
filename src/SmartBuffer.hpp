@@ -1,10 +1,12 @@
 #pragma once
+#include <concepts>
 #include <functional>
 #include <optional>
 #include <string.h>
 
 // SizeType should be an unsigned integral type
 template <class SizeType>
+requires std::unsigned_integral<SizeType>
 struct SyncIOReadBuffer
 {
   typedef std::function<SizeType(char *, const SizeType &)> IOInterface;
