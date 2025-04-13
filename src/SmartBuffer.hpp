@@ -263,8 +263,16 @@ struct SyncIOReadBuffer
 
 private:
 
-  // Assumes that len <= occupiedBytes, so the caller of this function has to
-  // take care of that
+  /**
+   * Copy some bytes into the provided outBuffer
+   * Assumes that len <= occupiedBytes, so the caller of this function has to
+   * take care of that. Handles the scerio when the memory
+   * to be copied is fragmented
+   * 
+   * @param out         The memory to copy the bytes into
+   * @param len         No. of bytes to read into the target
+   * 
+   **/
   void copy(char *const &out, const SizeType &len)
   {
     if (!len)
@@ -339,7 +347,10 @@ private:
     }
   }
 
-  // Read from IOInterface, the max amount of bytes possible(i.e. read bytes <= freeBytes() )
+  // Read from IOInterface, the max amount of bytes
+  // possible(i.e. freeBytes())
+  // Takes care of the scenario when the available memory is fragmented,
+  // by making separate io call for each fragment 
   SizeType paste(const IOInterface &ioInterface)
   {
     // Case 1: m_head = 0:
