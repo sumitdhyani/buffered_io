@@ -31,7 +31,7 @@ struct SyncIOReadBuffer
   {
     if (!size)
     {
-      throw std::invalid_argument("size should  be passed as a positive integer")
+      throw std::invalid_argument("size should  be passed as a positive integer");
     }
   }
 
@@ -491,7 +491,7 @@ struct SyncIOLazyWriteBuffer
   {
     if (!size)
     {
-      throw std::invalid_argument("size should  be passed as a positive integer")
+      throw std::invalid_argument("size should  be passed as a positive integer");
     }
   }
 
@@ -580,11 +580,7 @@ struct SyncIOLazyWriteBuffer
 private:
   /**
    *  Copy some data to the internal buffer
-   *  It puts the data in the buffer and delays the IO call for as long as
-   *  it can. If the buffer is already full or there is insufficint space in
-   *  the buffer to hold entire data, it will need to flush the buffered data
-   *  to the ioInterface
-   *
+   *  
    *  @param outData  The address from which the bytes are to be copied
    *                  into the internal buffer
    *  @param len      No. of bytes to be copied
