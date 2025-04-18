@@ -43,29 +43,26 @@ struct AsyncIOReadBuffer
             const IOInterface &ioInterface,
             const ReadResultHandler& resHandler)
   {
-    SizeType occBytes = occupiedBytes();
-    SizeType toCopy = std::min(occBytes, len);
+    SizeType toCopy = std::min(occupiedBytes(), len);
     copy(out, toCopy);
-    if (toCopy <= occBytes)
+    if (toCopy == len)
     {
       resHandler(len);
     }
     else
     {
       SizeType lengthTillEnd = m_size - m_head;
-      SizeType toRead = std::min(freeBytes(), lengthTillEnd)
-      ioInterface(m_readBuff + m_tail,
+      SizeType toRead = std::min(freeBytes(), lengthTillEnd);
+      ioInterface(m_readBuff + m_head,
                   toRead,
-                  [this, out, resHandler, ioInterface, len]
+                  [this, out, toCopy, resHandler, ioInterface, len]
                   (const SizeType &readLen)
-                  { onReadFromInterface(out + toCopy,
-                                        len - toCopy,
+                  { onReadFromInterface(out,
                                         len,
+                                        toCopy,
+                                        readLen,
                                         ioInterface,
-                                        [resHandler, toCopy](const SizeType &callbackLen)
-                                        {
-                                          resHandler(callbackLen + toCopy);
-                                        });
+                                        resHandler);
                   });
     }
   }
@@ -102,37 +99,53 @@ struct AsyncIOReadBuffer
 
   // Non copyable-assignable, Non moveable-move assinable for the reasons of
   // Simplicity
-  SyncIOReadBuffer(const SyncIOReadBuffer &) = delete;
-  SyncIOReadBuffer &operator=(const SyncIOReadBuffer &) = delete;
-  SyncIOReadBuffer(SyncIOReadBuffer &&) = delete;
-  SyncIOReadBuffer &operator=(SyncIOReadBuffer &&) = delete;
+  AsyncIOReadBuffer(const AsyncIOReadBuffer &) = delete;
+  AsyncIOReadBuffer &operator=(const AsyncIOReadBuffer &) = delete;
+  AsyncIOReadBuffer(AsyncIOReadBuffer &&) = delete;
+  AsyncIOReadBuffer &operator=(AsyncIOReadBuffer &&) = delete;
 
 private:
   void onReadFromInterface(char *const &out,
-                           const SizeType &requiredLen,
-                           const SizeType &totalReadFromInterface,
-                           const IOInterface &ioInterface,
-                           const ReadResultHandler &resHandler)
+                           const SizeType& totalRequired,
+                           const SizeType& totalRead,
+                           const SizeType& bytesInThisIOCall,
+                           const IOInterface& ioInterface,
+                           const ReadResultHandler& resHandler)
   {
-    if (!totalReadFromInterface)
+    if (!bytesInThisIOCall)
     {
-      resHandler(0);
+      resHandler(totalRead);
     }
     else
     {
-      m_head = (m_head + totalReadFromInterface) % m_size;
+      m_head = (m_head + bytesInThisIOCall) % m_size;
       m_lastOperation = LastOperation::PASTE;
-      SizeType occBytes = occupiedBytes();
-      SizeType toCopy = std::min(requiredLen, occBytes);
-      copy(out, toCopy);
+      SizeType totalLeftToRead = totalRequired - (totalRead + bytesInThisIOCall);
+      SizeType toCopy = std::min(totalLeftToRead, occupiedBytes());
+      copy(out + totalRead, toCopy);
+      totalLeftToRead -= toCopy;
 
-      if (toCopy <= requiredLen)
+      if (!totalLeftToRead)
       {
-        resHandler(toCopy);
+        resHandler(totalRequired);
       }
-      if (toCopy < requiredLen)
+      else
       {
-        read(out + toCopy, requiredLen - toCopy, ioInterface, resHandler);
+        SizeType lengthTillEnd = m_size - m_head;
+        SizeType toRead = std::min(std::min(lengthTillEnd, freeBytes()), totalLeftToRead);
+
+        ioInterface(m_readBuff + m_tail,
+                    toRead,
+                    [this, out, totalRequired, totalRead, toCopy, ioInterface, resHandler]
+                    (const SizeType &readLen)
+                    {
+                      onReadFromInterface(out,
+                                          totalRequired,
+                                          totalRead +  toCopy,
+                                          readLen,
+                                          ioInterface,
+                                          resHandler);
+                    });
       }
     }
   }
