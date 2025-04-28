@@ -153,13 +153,14 @@ protected:
     return len;
   }
 
+  using Task = std::function<void()>;
+  using WorkerThread = FifoConsumerThread<Task>;
+  using ResHandler = AsyncIOReadBuffer<uint32_t>::ReadResultHandler;
 };
 
 TEST_F(AsyncBufferTest, ReadUntilAndEnderNotFound_WithPredicate)
 {
-  using Task = std::function<void()>;
-  using WorkerThread = FifoConsumerThread<Task>;
-  using ResHandler = AsyncIOReadBuffer<uint32_t>::ReadResultHandler;
+  
   mockInput = "HelloWorld";
 
   auto w1 = std::make_shared<WorkerThread>([](const Task &task)
