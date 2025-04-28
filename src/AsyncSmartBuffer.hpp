@@ -8,7 +8,7 @@ template <class SizeType>
 struct AsyncIOReadBuffer
 {
   typedef std::function<void(const SizeType&)> ReadResultHandler;
-  typedef std::function<SizeType(char *, const SizeType&, const ReadResultHandler&)> IOInterface;
+  typedef std::function<void(char *, const SizeType&, const ReadResultHandler&)> IOInterface;
   enum class LastOperation
   {
     COPY,
@@ -134,10 +134,9 @@ private:
         SizeType lengthTillEnd = m_size - m_head;
         SizeType toRead = std::min(std::min(lengthTillEnd, freeBytes()), totalLeftToRead);
 
-        ioInterface(m_readBuff + m_tail,
+        ioInterface(m_readBuff + m_tail + totalRead + bytesInThisIOCall,
                     toRead,
-                    [this, out, totalRequired, totalRead, toCopy, ioInterface, resHandler]
-                    (const SizeType &readLen)
+                    [this, out, totalRequired, totalRead, toCopy, ioInterface, resHandler](const SizeType &readLen)
                     {
                       onReadFromInterface(out,
                                           totalRequired,
