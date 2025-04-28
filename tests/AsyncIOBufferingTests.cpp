@@ -124,6 +124,10 @@ public:
 class AsyncBufferTest : public ::testing::Test
 {
 protected:
+  using Task = std::function<void()>;
+  using WorkerThread = FifoConsumerThread<Task>;
+  using ResHandler = AsyncIOReadBuffer<uint32_t>::ReadResultHandler;
+
   void SetUp() override
   {
     // Mock input stream for performance tests
@@ -135,6 +139,8 @@ protected:
   std::string mockInput;
   std::string defaultOutput;
   std::string smartOutput;
+  WorkerThread w1;
+  WorkerThread w2;
 
   // Mock reader for SmartIOTest
   size_t readPos = 0;
@@ -153,31 +159,28 @@ protected:
     return len;
   }
 
-  using Task = std::function<void()>;
-  using WorkerThread = FifoConsumerThread<Task>;
-  using ResHandler = AsyncIOReadBuffer<uint32_t>::ReadResultHandler;
+  AsyncBufferTest() :
+    w1([](const Task &task) { task(); }),
+    w2([](const Task &task) { task(); })
+  {}
 };
 
-TEST_F(AsyncBufferTest, ReadUntilAndEnderNotFound_WithPredicate)
+TEST_F(AsyncBufferTest, ReadWhenBufferSizeisLessThanRequestedLen)
 {
   
   mockInput = "HelloWorld";
-
-  auto w1 = std::make_shared<WorkerThread>([](const Task &task)
-                                           { task(); });
-  auto w2 = std::make_shared<WorkerThread>([](const Task &task)
-                                           { task(); });
-  char* output = new char[10];
+  uint32_t totalLenRead = 0;
   auto buffer = std::make_shared<AsyncIOReadBuffer<uint32_t>>(2);
+  char* output = new char[10];
 
   auto ioInterface =
-      [this, w1, w2](char *out, const uint32_t &len, const ResHandler &resHandler)
+  [this](char *out, const uint32_t &len, const ResHandler &resHandler)
   {
-    w2->push(
-        [this, w1, out, resHandler, len]()
+    w2.push(
+        [this, out, resHandler, len]()
         {
           auto readLen = mockReader(out, len);
-          w1->push(
+          w1.push(
               [resHandler, readLen]()
               {
                 resHandler(readLen);
@@ -185,13 +188,16 @@ TEST_F(AsyncBufferTest, ReadUntilAndEnderNotFound_WithPredicate)
         });
   };
 
-  w1->push([buffer, output, ioInterface]()
+  w1.push([buffer, output, ioInterface, &totalLenRead]()
   {
-    buffer->read(output, 10, ioInterface, [output](const uint32_t& len){
-    } );
+    buffer->read(output, 10, ioInterface, [output, &totalLenRead](const uint32_t& len)
+    {
+        totalLenRead = len;  
+    });
   });
 
   std::this_thread::sleep_for(std::chrono::seconds(1));
+  EXPECT_EQ(totalLenRead, 10);
   EXPECT_EQ(memcmp(output, mockInput.c_str(), mockInput.length()), 0);
   delete[] output;
 }
