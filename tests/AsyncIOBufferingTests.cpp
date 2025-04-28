@@ -128,12 +128,9 @@ protected:
   using WorkerThread = FifoConsumerThread<Task>;
   using ResHandler = AsyncIOReadBuffer<uint32_t>::ReadResultHandler;
 
-  void SetUp() override
+  void TearDown() override
   {
-    // Mock input stream for performance tests
-    std::ostringstream oss;
-    oss << "3\n1 2\n3 4\n5 6\n"; // Small sample input
-    mockInput = oss.str();
+    readPos = 0;
   }
 
   std::string mockInput;
@@ -165,7 +162,77 @@ protected:
   {}
 };
 
-TEST_F(AsyncBufferTest, ReadWhenBufferSizeisLessThanRequestedLen)
+TEST_F(AsyncBufferTest, ConcurrentReads)
+{
+
+  mockInput = "10HelloWorld08ByeWorld";
+  auto buffer = std::make_shared<AsyncIOReadBuffer<uint32_t>>(200);
+  std::vector<std::string> msgs;
+  char* buff = new char[1024]{0};
+
+  std::function<void()> readHeader = [](){};
+
+  auto ioInterface =
+  [this](char *out, const uint32_t &len, const ResHandler &resHandler)
+  {
+    w2.push(
+        [this, out, resHandler, len]()
+        {
+          auto readLen = mockReader(out, len);
+          w1.push(
+              [resHandler, readLen]()
+              {
+                resHandler(readLen);
+              });
+        });
+  };
+
+  auto onMsgRead =
+  [&](const char* msg, const uint32_t& msgLen)
+  {
+    msgs.emplace_back(msg, msgLen);
+    w1.push(readHeader);
+  };
+
+  auto onHeaderRead =
+  [&](const uint32_t &msgLen)
+  {
+    buffer->read(buff,
+                 msgLen,
+                 ioInterface,
+                 [&](const uint32_t &len)
+                 {
+                   onMsgRead(buff, len);
+                 });
+  };
+
+  readHeader =
+  [&]()
+  {
+    buff[2] = '\0';
+    buffer->read(buff,
+                 2,
+                 ioInterface,
+                 [&](const uint32_t &len)
+                 {
+                   if (!len)
+                     return;
+
+                   auto msgLen = atoi(buff);
+                   onHeaderRead(msgLen);
+                 });
+  };
+  
+  w1.push(readHeader);
+
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+  EXPECT_EQ(msgs.size(), 2);
+  EXPECT_EQ(msgs[0], std::string("HelloWorld"));
+  EXPECT_EQ(msgs[1], std::string("ByeWorld"));
+  delete[] buff;
+}
+
+TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
 {
   
   mockInput = "HelloWorld";
