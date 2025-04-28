@@ -165,20 +165,22 @@ protected:
 TEST_F(AsyncBufferTest, ConcurrentReads)
 {
 
-  mockInput = "10HelloWorld08ByeWorld";
+  mockInput = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
   auto buffer = std::make_shared<AsyncIOReadBuffer<uint32_t>>(200);
   std::vector<std::string> msgs;
+  uint32_t totalIOCalls = 0;
   char* buff = new char[1024]{0};
 
   std::function<void()> readHeader = [](){};
 
   auto ioInterface =
-  [this](char *out, const uint32_t &len, const ResHandler &resHandler)
+  [this, &totalIOCalls](char *out, const uint32_t &len, const ResHandler &resHandler)
   {
     w2.push(
-        [this, out, resHandler, len]()
+        [this, out, resHandler, len, &totalIOCalls]()
         {
           auto readLen = mockReader(out, len);
+          ++totalIOCalls;
           w1.push(
               [resHandler, readLen]()
               {
@@ -226,9 +228,12 @@ TEST_F(AsyncBufferTest, ConcurrentReads)
   w1.push(readHeader);
 
   std::this_thread::sleep_for(std::chrono::seconds(1));
-  EXPECT_EQ(msgs.size(), 2);
+  EXPECT_EQ(msgs.size(), 4);
   EXPECT_EQ(msgs[0], std::string("HelloWorld"));
   EXPECT_EQ(msgs[1], std::string("ByeWorld"));
+  EXPECT_EQ(msgs[2], std::string("HaleLujah"));
+  EXPECT_EQ(msgs[3], std::string("JaiShriRam"));
+  EXPECT_EQ(totalIOCalls, 2);
   delete[] buff;
 }
 
