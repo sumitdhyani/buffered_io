@@ -32,7 +32,7 @@ protected:
   }
 
   // Mock writer for SmartIOTest
-  uint32_t mockWriter(char *buf, uint32_t len)
+  uint32_t mockWriter(const char *buf, uint32_t len)
   {
     smartOutput.append(buf, len);
     return len;
@@ -76,7 +76,7 @@ protected:
     smartOutput.clear();
     auto io_console_reader = [this](char *out, const uint32_t len)
     { return mockReader(out, len); };
-    auto io_console_writer = [this](char *out, const uint32_t len)
+    auto io_console_writer = [this](const char *out, const uint32_t len)
     { return mockWriter(out, len); };
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -135,7 +135,7 @@ TEST_F(BufferTest, ReadUntilNewline_WithPredicate)
 
 TEST_F(BufferTest, WriteAndFlush)
 {
-  SyncIOLazyWriteBuffer<uint32_t> buffer(10, [this](char *buf, uint32_t len)
+  SyncIOLazyWriteBuffer<uint32_t> buffer(10, [this](const char *buf, uint32_t len)
                                          { return mockWriter(buf, len); });
   const char *data = "Hello";
   
@@ -148,7 +148,7 @@ TEST_F(BufferTest, WriteAndFlush)
 
 TEST_F(BufferTest, WriteUntilFlushed)
 {
-  SyncIOLazyWriteBuffer<uint32_t> buffer(12, [this](char *buf, uint32_t len)
+  SyncIOLazyWriteBuffer<uint32_t> buffer(12, [this](const char *buf, uint32_t len)
                                          { return mockWriter(buf, len); });
   const char *data = "Hello!";
 

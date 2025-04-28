@@ -1,10 +1,13 @@
 #pragma once
+#include <concepts>
+#include <stdexcept>
 #include <functional>
 #include <optional>
 #include <string.h>
 
 // SizeType should be an unsigned integral type
 template <class SizeType>
+requires std::unsigned_integral<SizeType>
 struct SyncIOReadBuffer
 {
   typedef std::function<SizeType(char *, const SizeType &)> IOInterface;
@@ -18,14 +21,18 @@ struct SyncIOReadBuffer
   /**
    *  Constructor
    *  @param size Size of the Buffer
-   *              If 0 is given as size, size is deemed to be 1  
-  **/
-  SyncIOReadBuffer(const SizeType &size) : m_readBuff(reinterpret_cast<char *>(!size? malloc(1) : malloc(size))),
+   *              throws if size is 0
+   **/
+  SyncIOReadBuffer(const SizeType &size) : m_readBuff(reinterpret_cast<char *>(malloc(size))),
                                            m_tail(0),
                                            m_head(0),
                                            m_size(size),
                                            m_lastOperation(LastOperation::NONE)
   {
+    if (!size)
+    {
+      throw std::invalid_argument("size should  be passed as a positive integer");
+    }
   }
 
   /**
@@ -261,8 +268,16 @@ struct SyncIOReadBuffer
 
 private:
 
-  // Assumes that len <= occupiedBytes, so the caller of this function has to
-  // take care of that
+  /**
+   * Copy some bytes into the provided outBuffer
+   * Assumes that len <= occupiedBytes, so the caller of this function has to
+   * take care of that. Handles the scerio when the memory
+   * to be copied is fragmented
+   * 
+   * @param out         The memory to copy the bytes into
+   * @param len         No. of bytes to read into the target
+   * 
+   **/
   void copy(char *const &out, const SizeType &len)
   {
     if (!len)
@@ -337,7 +352,10 @@ private:
     }
   }
 
-  // Read from IOInterface, the max amount of bytes possible(i.e. read bytes <= freeBytes() )
+  // Read from IOInterface, the max amount of bytes
+  // possible(i.e. freeBytes())
+  // Takes care of the scenario when the available memory is fragmented,
+  // by making separate io call for each fragment 
   SizeType paste(const IOInterface &ioInterface)
   {
     // Case 1: m_head = 0:
@@ -446,9 +464,10 @@ private:
 };
 
 template <class SizeType>
+requires std::unsigned_integral<SizeType>
 struct SyncIOLazyWriteBuffer
 {
-  typedef std::function<SizeType(char *, const SizeType &)> IOInterface;
+  typedef std::function<SizeType(const char*, const SizeType&)> IOInterface;
   enum class LastOperation
   {
     FLUSH,
@@ -456,14 +475,38 @@ struct SyncIOLazyWriteBuffer
     NONE
   };
 
-  SyncIOLazyWriteBuffer(const SizeType &size, const IOInterface &dataWriter) : m_outBuff(reinterpret_cast<char *>(malloc(size))),
-                                                                              m_tail(0),
-                                                                              m_head(0),
-                                                                              m_size(size),
-                                                                              m_ioInterface(dataWriter),
-                                                                              m_lastOperation(LastOperation::NONE)
-  {}
+  /**
+   *  Constructor
+   *  @param size         Size of the Buffer
+   *                      throws if size is 0
+   *  @param ioInterface  The synchronous IOInterface to write bytes to,
+   *                      it's an std::function<SizeType(const char*, const SizeType&)>
+   **/
+  SyncIOLazyWriteBuffer(const SizeType &size, const IOInterface &ioInterface) : m_outBuff(reinterpret_cast<char *>(malloc(size))),
+                                                                                m_tail(0),
+                                                                                m_head(0),
+                                                                                m_size(size),
+                                                                                m_ioInterface(ioInterface),
+                                                                                m_lastOperation(LastOperation::NONE)
+  {
+    if (!size)
+    {
+      throw std::invalid_argument("size should  be passed as a positive integer");
+    }
+  }
 
+  /**
+   *  Write data to interface
+   *  It puts the data in the buffer and delays the IO call for as long as
+   *  it can. If the buffer is already full or there is insufficint space in
+   *  the buffer to hold entire data, it will need to flush the buffered data
+   *  to the ioInterface
+   *
+   *  @param size         Size of the Buffer
+   *                      throws if size is 0
+   *  @param ioInterface  The synchronous IOInterface to write bytes to,
+   *                      it's an std::function<SizeType(const char*, const SizeType&)>
+   **/
   SizeType write(const char *out, const SizeType &len)
   {
     SizeType remainingLen = len;
@@ -485,6 +528,9 @@ struct SyncIOLazyWriteBuffer
     return ret;
   }
 
+  /*
+  * Put all of the buffered data to the ioInterface
+  */
   SizeType flush()
   {
     if (!occupiedBytes())
@@ -532,7 +578,16 @@ struct SyncIOLazyWriteBuffer
   SyncIOLazyWriteBuffer &operator=(SyncIOLazyWriteBuffer &&) = delete;
 
 private:
-  // Should be Called only when freeBytes() <= len
+  /**
+   *  Copy some data to the internal buffer
+   *  
+   *  @param outData  The address from which the bytes are to be copied
+   *                  into the internal buffer
+   *  @param len      No. of bytes to be copied
+   *  
+   *  @remark          Assumes that len is <= the available memory, 
+   *                  So the caller has to take care of that
+   **/
   void put(const char *outData, const SizeType &len)
   {
     if (!len)

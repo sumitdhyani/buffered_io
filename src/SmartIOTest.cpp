@@ -15,7 +15,7 @@ int main(int argc, char** argv)
       };
 
       auto io_console_writer = 
-      [](char* out, const uint32_t len)
+      [](const char* out, const uint32_t len)
       {
           std::cout.write(out, len);
           return len;
