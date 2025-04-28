@@ -237,16 +237,18 @@ TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
   
   mockInput = "HelloWorld";
   uint32_t totalLenRead = 0;
+  uint32_t totalIOCalls = 0;
   auto buffer = std::make_shared<AsyncIOReadBuffer<uint32_t>>(2);
   char* output = new char[10];
 
   auto ioInterface =
-  [this](char *out, const uint32_t &len, const ResHandler &resHandler)
+  [this, &totalIOCalls](char *out, const uint32_t &len, const ResHandler &resHandler)
   {
     w2.push(
-        [this, out, resHandler, len]()
+        [this, out, resHandler, len, &totalIOCalls]()
         {
           auto readLen = mockReader(out, len);
+          ++totalIOCalls;
           w1.push(
               [resHandler, readLen]()
               {
@@ -266,6 +268,7 @@ TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
   std::this_thread::sleep_for(std::chrono::seconds(1));
   EXPECT_EQ(totalLenRead, 10);
   EXPECT_EQ(memcmp(output, mockInput.c_str(), mockInput.length()), 0);
+  EXPECT_EQ(totalIOCalls, 5);
   delete[] output;
 }
 
