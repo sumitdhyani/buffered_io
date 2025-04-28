@@ -162,7 +162,7 @@ protected:
   {}
 };
 
-TEST_F(AsyncBufferTest, ConcurrentReads)
+TEST_F(AsyncBufferTest, SearialReads)
 {
 
   mockInput = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";

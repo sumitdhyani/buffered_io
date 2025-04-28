@@ -132,7 +132,7 @@ private:
       else
       {
         SizeType lengthTillEnd = m_size - m_head;
-        SizeType toRead = std::min(std::min(lengthTillEnd, freeBytes()), totalLeftToRead);
+        SizeType toRead = std::min(lengthTillEnd, freeBytes());
 
         ioInterface(m_readBuff + m_head,
                     toRead,
