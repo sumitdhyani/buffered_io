@@ -120,7 +120,7 @@ private:
     {
       m_head = (m_head + bytesInThisIOCall) % m_size;
       m_lastOperation = LastOperation::PASTE;
-      SizeType totalLeftToRead = totalRequired - (totalRead + bytesInThisIOCall);
+      SizeType totalLeftToRead = totalRequired - totalRead;
       SizeType toCopy = std::min(totalLeftToRead, occupiedBytes());
       copy(out + totalRead, toCopy);
       totalLeftToRead -= toCopy;
@@ -134,7 +134,7 @@ private:
         SizeType lengthTillEnd = m_size - m_head;
         SizeType toRead = std::min(std::min(lengthTillEnd, freeBytes()), totalLeftToRead);
 
-        ioInterface(m_readBuff + m_tail + totalRead + bytesInThisIOCall,
+        ioInterface(m_readBuff + m_head,
                     toRead,
                     [this, out, totalRequired, totalRead, toCopy, ioInterface, resHandler](const SizeType &readLen)
                     {
