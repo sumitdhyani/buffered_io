@@ -139,7 +139,6 @@ protected:
   WorkerThread w1;
   WorkerThread w2;
 
-  // Mock reader for SmartIOTest
   size_t readPos = 0;
   uint32_t mockReader(char *out, uint32_t len)
   {
@@ -149,7 +148,73 @@ protected:
     return toCopy;
   }
 
-  // Mock writer for SmartIOTest
+  // Msgs are assumed to be in the format: <2 bytes for header, that contains msgLength><msg content>
+  void readMsgs(AsyncIOReadBuffer<uint32_t> &buffer,
+                char *outBuff,
+                std::vector<std::string> &msgs,
+                uint32_t &totalIOCalls)
+  {
+    totalIOCalls = 0;
+    std::function<void()> readHeader = []() {};
+
+    auto ioInterface =
+        [&](char *out, const uint32_t &len, const ResHandler &resHandler)
+    {
+      w2.push(
+          [this, out, resHandler, len, &totalIOCalls]()
+          {
+            auto readLen = mockReader(out, len);
+            ++totalIOCalls;
+            w1.push(
+                [resHandler, readLen]()
+                {
+                  resHandler(readLen);
+                });
+          });
+    };
+
+    auto onMsgRead =
+        [&](const char *msg, const uint32_t &msgLen)
+    {
+      msgs.emplace_back(msg, msgLen);
+      w1.push(readHeader);
+    };
+
+    auto onHeaderRead =
+        [&](const uint32_t &msgLen)
+    {
+      buffer.read(outBuff,
+                   msgLen,
+                   ioInterface,
+                   [&](const uint32_t &len)
+                   {
+                     onMsgRead(outBuff, len);
+                   });
+    };
+
+    readHeader =
+        [&]()
+    {
+      outBuff[2] = '\0';
+      buffer.read(outBuff,
+                   2,
+                   ioInterface,
+                   [&](const uint32_t &len)
+                   {
+                     if (len < 2)
+                       return;
+
+                     auto msgLen = atoi(outBuff);
+                     onHeaderRead(msgLen);
+                   });
+    };
+
+    w1.push(readHeader);
+
+    // 1 second should be enough for all the reads to happen
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+
   uint32_t mockWriter(char *buf, uint32_t len)
   {
     smartOutput.append(buf, len);
@@ -166,225 +231,60 @@ TEST_F(AsyncBufferTest, SearialReads_BufferSizeLessThanEverySingleReadSize)
 {
 
   mockInput = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
-  auto buffer = std::make_shared<AsyncIOReadBuffer<uint32_t>>(2);
+  AsyncIOReadBuffer<uint32_t> buffer(2);
   std::vector<std::string> msgs;
   uint32_t totalIOCalls = 0;
-  char *buff = new char[1024]{0};
+  char *outBuff = new char[1024];
 
-  std::function<void()> readHeader = []() {};
+  readMsgs(buffer, outBuff, msgs, totalIOCalls);
 
-  auto ioInterface =
-      [this, &totalIOCalls](char *out, const uint32_t &len, const ResHandler &resHandler)
-  {
-    w2.push(
-        [this, out, resHandler, len, &totalIOCalls]()
-        {
-          auto readLen = mockReader(out, len);
-          ++totalIOCalls;
-          w1.push(
-              [resHandler, readLen]()
-              {
-                resHandler(readLen);
-              });
-        });
-  };
-
-  auto onMsgRead =
-      [&](const char *msg, const uint32_t &msgLen)
-  {
-    msgs.emplace_back(msg, msgLen);
-    w1.push(readHeader);
-  };
-
-  auto onHeaderRead =
-      [&](const uint32_t &msgLen)
-  {
-    buffer->read(buff,
-                 msgLen,
-                 ioInterface,
-                 [&](const uint32_t &len)
-                 {
-                   onMsgRead(buff, len);
-                 });
-  };
-
-  readHeader =
-      [&]()
-  {
-    buff[2] = '\0';
-    buffer->read(buff,
-                 2,
-                 ioInterface,
-                 [&](const uint32_t &len)
-                 {
-                   if (!len)
-                     return;
-
-                   auto msgLen = atoi(buff);
-                   onHeaderRead(msgLen);
-                 });
-  };
-
-  w1.push(readHeader);
-
-  std::this_thread::sleep_for(std::chrono::seconds(1));
   EXPECT_EQ(msgs.size(), 4);
   EXPECT_EQ(msgs[0], std::string("HelloWorld"));
   EXPECT_EQ(msgs[1], std::string("ByeWorld"));
   EXPECT_EQ(msgs[2], std::string("HaleLujah"));
   EXPECT_EQ(msgs[3], std::string("JaiShriRam"));
   EXPECT_EQ(totalIOCalls, 24);
-  delete[] buff;
+  delete[] outBuff;
 }
 
 TEST_F(AsyncBufferTest, SearialReads_BufferSizeLessThanTotalReadSize)
 {
 
   mockInput = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
-  auto buffer = std::make_shared<AsyncIOReadBuffer<uint32_t>>(10);
+  AsyncIOReadBuffer<uint32_t> buffer(10);
   std::vector<std::string> msgs;
   uint32_t totalIOCalls = 0;
-  char *buff = new char[1024]{0};
+  char *outBuff = new char[1024];
 
-  std::function<void()> readHeader = []() {};
+  readMsgs(buffer, outBuff, msgs, totalIOCalls);
 
-  auto ioInterface =
-      [this, &totalIOCalls](char *out, const uint32_t &len, const ResHandler &resHandler)
-  {
-    w2.push(
-        [this, out, resHandler, len, &totalIOCalls]()
-        {
-          auto readLen = mockReader(out, len);
-          ++totalIOCalls;
-          w1.push(
-              [resHandler, readLen]()
-              {
-                resHandler(readLen);
-              });
-        });
-  };
-
-  auto onMsgRead =
-      [&](const char *msg, const uint32_t &msgLen)
-  {
-    msgs.emplace_back(msg, msgLen);
-    w1.push(readHeader);
-  };
-
-  auto onHeaderRead =
-      [&](const uint32_t &msgLen)
-  {
-    buffer->read(buff,
-                 msgLen,
-                 ioInterface,
-                 [&](const uint32_t &len)
-                 {
-                   onMsgRead(buff, len);
-                 });
-  };
-
-  readHeader =
-      [&]()
-  {
-    buff[2] = '\0';
-    buffer->read(buff,
-                 2,
-                 ioInterface,
-                 [&](const uint32_t &len)
-                 {
-                   if (!len)
-                     return;
-
-                   auto msgLen = atoi(buff);
-                   onHeaderRead(msgLen);
-                 });
-  };
-
-  w1.push(readHeader);
-
-  std::this_thread::sleep_for(std::chrono::seconds(1));
   EXPECT_EQ(msgs.size(), 4);
   EXPECT_EQ(msgs[0], std::string("HelloWorld"));
   EXPECT_EQ(msgs[1], std::string("ByeWorld"));
   EXPECT_EQ(msgs[2], std::string("HaleLujah"));
   EXPECT_EQ(msgs[3], std::string("JaiShriRam"));
   EXPECT_EQ(totalIOCalls, 6);
-  delete[] buff;
+  delete[] outBuff;
 }
 
 TEST_F(AsyncBufferTest, SearialReads)
 {
 
   mockInput = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
-  auto buffer = std::make_shared<AsyncIOReadBuffer<uint32_t>>(200);
+  AsyncIOReadBuffer<uint32_t> buffer(200);
   std::vector<std::string> msgs;
   uint32_t totalIOCalls = 0;
-  char* buff = new char[1024]{0};
+  char* outBuff = new char[1024];
 
-  std::function<void()> readHeader = [](){};
+  readMsgs(buffer, outBuff, msgs, totalIOCalls);
 
-  auto ioInterface =
-  [this, &totalIOCalls](char *out, const uint32_t &len, const ResHandler &resHandler)
-  {
-    w2.push(
-        [this, out, resHandler, len, &totalIOCalls]()
-        {
-          auto readLen = mockReader(out, len);
-          ++totalIOCalls;
-          w1.push(
-              [resHandler, readLen]()
-              {
-                resHandler(readLen);
-              });
-        });
-  };
-
-  auto onMsgRead =
-  [&](const char* msg, const uint32_t& msgLen)
-  {
-    msgs.emplace_back(msg, msgLen);
-    w1.push(readHeader);
-  };
-
-  auto onHeaderRead =
-  [&](const uint32_t &msgLen)
-  {
-    buffer->read(buff,
-                 msgLen,
-                 ioInterface,
-                 [&](const uint32_t &len)
-                 {
-                   onMsgRead(buff, len);
-                 });
-  };
-
-  readHeader =
-  [&]()
-  {
-    buff[2] = '\0';
-    buffer->read(buff,
-                 2,
-                 ioInterface,
-                 [&](const uint32_t &len)
-                 {
-                   if (!len)
-                     return;
-
-                   auto msgLen = atoi(buff);
-                   onHeaderRead(msgLen);
-                 });
-  };
-  
-  w1.push(readHeader);
-
-  std::this_thread::sleep_for(std::chrono::seconds(1));
   EXPECT_EQ(msgs.size(), 4);
   EXPECT_EQ(msgs[0], std::string("HelloWorld"));
   EXPECT_EQ(msgs[1], std::string("ByeWorld"));
   EXPECT_EQ(msgs[2], std::string("HaleLujah"));
   EXPECT_EQ(msgs[3], std::string("JaiShriRam"));
   EXPECT_EQ(totalIOCalls, 2);
-  delete[] buff;
+  delete[] outBuff;
 }
 
 TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
@@ -397,7 +297,7 @@ TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
   char* output = new char[10];
 
   auto ioInterface =
-  [this, &totalIOCalls](char *out, const uint32_t &len, const ResHandler &resHandler)
+  [&](char *out, const uint32_t &len, const ResHandler &resHandler)
   {
     w2.push(
         [this, out, resHandler, len, &totalIOCalls]()
