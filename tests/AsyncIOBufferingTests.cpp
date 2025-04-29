@@ -312,9 +312,9 @@ TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
         });
   };
 
-  w1.push([buffer, output, ioInterface, &totalLenRead]()
+  w1.push([&]()
   {
-    buffer->read(output, 10, ioInterface, [output, &totalLenRead](const uint32_t& len)
+    buffer->read(output, 10, ioInterface, [&](const uint32_t& len)
     {
         totalLenRead = len;  
     });

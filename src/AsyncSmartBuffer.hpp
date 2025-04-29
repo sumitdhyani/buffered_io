@@ -39,6 +39,17 @@ struct AsyncIOReadBuffer
    *                    it's an std::function<SizeType(char *, const SizeType &)>
    *
    * @return            No. of bytes actually read from the IOInterface
+   * @remarks           a) The "resHandler" callback should only be called after
+   *                       read method is called
+   *                       and vice-versa, they should never be called in parallel
+   *                    b) As a corallary of point 1, a call to read method should not
+   *                       be made until previous read is finished.
+   *                       Or in ither words a call to read should me made only when the
+   *                       resultHandler for previous read has been invoked.
+   *                       Infact it might be a good idea in most situation to call the read
+   *                       method in the 'resHandler' to generate an "asnchronous read loop"
+   *                       and exit that loop when the "reshandler" is invoked with 0 bytes,
+   *                       indicating that the IOInterface can no longer provide any data
    **/
   void read(char *const &out,
             const SizeType &len,
