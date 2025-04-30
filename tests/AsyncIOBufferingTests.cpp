@@ -126,26 +126,35 @@ class AsyncBufferTest : public ::testing::Test
 protected:
   using Task = std::function<void()>;
   using WorkerThread = FifoConsumerThread<Task>;
-  using ResHandler = AsyncIOReadBuffer<uint32_t>::ReadResultHandler;
+  using ReadResultHandler = AsyncIOReadBuffer<uint32_t>::ReadResultHandler;
+  using WriteResultHandler = AsyncIOWriteBuffer<uint32_t>::WriteResultHandler;
 
   void TearDown() override
   {
     readPos = 0;
+    mockInput = mockOutPut = "";
   }
 
   std::string mockInput;
-  std::string defaultOutput;
-  std::string smartOutput;
+  std::string mockOutPut;
   WorkerThread w1;
   WorkerThread w2;
 
   size_t readPos = 0;
+  
   uint32_t mockReader(char *out, uint32_t len)
   {
     uint32_t toCopy = std::min(len, static_cast<uint32_t>(mockInput.length() - readPos));
     std::memcpy(out, mockInput.c_str() + readPos, toCopy);
     readPos += toCopy;
     return toCopy;
+  }
+
+  // Mock writer for SmartIOTest
+  uint32_t mockWriter(const char *buf, uint32_t len)
+  {
+    mockOutPut.append(buf, len);
+    return len;
   }
 
   // Msgs are assumed to be in the format: <2 bytes for header, that contains msgLength><msg content>
@@ -158,7 +167,7 @@ protected:
     std::function<void()> readHeader = []() {};
 
     auto ioInterface =
-        [&](char *out, const uint32_t &len, const ResHandler &resHandler)
+        [&](char *out, const uint32_t &len, const ReadResultHandler &resHandler)
     {
       w2.push(
           [this, out, resHandler, len, &totalIOCalls]()
@@ -215,10 +224,43 @@ protected:
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  uint32_t mockWriter(char *buf, uint32_t len)
+  // Msgs are assumed to be in the format: <2 bytes for header, that contains msgLength><msg content>
+  void writeMsgs(AsyncIOWriteBuffer<uint32_t> &buffer,
+                 const char *outBuff)
   {
-    smartOutput.append(buf, len);
-    return len;
+    std::function<void()> writeMsg = []() {};
+    uint32_t readHead = 0;
+
+    auto onMsgWritten =
+    [&]()
+    {
+      writeMsg();
+    };
+
+    writeMsg =
+    [&]()
+    {
+      if(outBuff[readHead] == '\0') return;
+
+      char num[3]{0};
+      memcpy(num, outBuff + readHead, 2);
+      uint32_t expectedLen = atoll((char*)num);
+      readHead += 2;
+      buffer.write(outBuff + readHead,
+                  atoll((char*)num),
+                  [&, expectedLen](const uint32_t &len)
+                  {
+                    if(len < expectedLen) return;
+
+                    readHead += len;
+                    onMsgWritten();
+                  });
+    };
+
+    w1.push(writeMsg);
+
+    // 1 second should be enough for all the reads to happen
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
   AsyncBufferTest() :
@@ -297,7 +339,7 @@ TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
   char* output = new char[10];
 
   auto ioInterface =
-  [&](char *out, const uint32_t &len, const ResHandler &resHandler)
+  [&](char *out, const uint32_t &len, const ReadResultHandler &resHandler)
   {
     w2.push(
         [this, out, resHandler, len, &totalIOCalls]()
@@ -325,6 +367,39 @@ TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
   EXPECT_EQ(memcmp(output, mockInput.c_str(), mockInput.length()), 0);
   EXPECT_EQ(totalIOCalls, 5);
   delete[] output;
+}
+
+TEST_F(AsyncBufferTest, SearialWrites)
+{
+
+  const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
+  const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
+  uint32_t totalIOCalls = 0;
+
+  auto ioInterface =
+  [&](const char *out, const uint32_t &len, const WriteResultHandler& resHandler)
+  {
+    w2.push(
+        [this, out, resHandler, len, &totalIOCalls]()
+        {
+          auto writeLen = mockWriter(out, len);
+          ++totalIOCalls;
+          w1.push(
+              [resHandler, writeLen]()
+              {
+                resHandler(writeLen);
+              });
+        });
+  };
+
+  AsyncIOWriteBuffer<uint32_t> buffer(200, ioInterface);
+
+  writeMsgs(buffer, outBuff);
+
+  EXPECT_EQ(totalIOCalls, 4);
+  EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
+
+  delete[] outBuff;
 }
 
 int main(int argc, char **argv)
