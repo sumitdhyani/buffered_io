@@ -400,7 +400,7 @@ TEST_F(AsyncBufferTest, SearialWrites)
   EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
 }
 
-TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleReadSize)
+TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleWriteSize)
 {
 
   const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
