@@ -400,6 +400,37 @@ TEST_F(AsyncBufferTest, SearialWrites)
   EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
 }
 
+TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleReadSize)
+{
+
+  const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
+  const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
+  uint32_t totalIOCalls = 0;
+
+  auto ioInterface =
+      [&](const char *out, const uint32_t &len, const WriteResultHandler &resHandler)
+  {
+    w2.push(
+        [this, out, resHandler, len, &totalIOCalls]()
+        {
+          auto writeLen = mockWriter(out, len);
+          ++totalIOCalls;
+          w1.push(
+              [resHandler, writeLen]()
+              {
+                resHandler(writeLen);
+              });
+        });
+  };
+
+  AsyncIOWriteBuffer<uint32_t> buffer(1, ioInterface);
+
+  writeMsgs(buffer, outBuff);
+
+  EXPECT_EQ(totalIOCalls, 37);
+  EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

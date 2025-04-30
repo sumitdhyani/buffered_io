@@ -446,7 +446,7 @@ private:
         len <= m_size - m_head)
     {
       memcpy(m_outBuff + m_head, outData, len);
-      m_head += len;
+      m_head = (m_head + len) % m_size;
     }
     else
     {
