@@ -118,6 +118,22 @@ struct AsyncIOReadBuffer
   AsyncIOReadBuffer &operator=(AsyncIOReadBuffer &&) = delete;
 
 private:
+  /**
+   * This is the callback that is called whenever some bytes are yielded by the externally provided
+   * IOInterface. This method checks whether the no. of bytes requested in the original 'read'
+   * request have been read into the externally provided buffer.
+   * If the totalReadBytes are < totalRequired bytes, then it attempts to call the IOINterface again
+   * till the totalRead bytes are < totalRequired bytes
+   * Hence, creating an asynchronous loop.
+   * @param out               The original pointer that was provided to read method
+   * @param totalRequired     The total no. of bytes that were requested to the read method
+   * @param totalRead         The total bytes read into the 'out' pointer since the
+   *                          read method was called
+   * @param bytesInThisIOCall No. of bytes yielded by the IOInterface in last read attempt
+   * @param ioInterface       The externally provided IOInterface
+   * @param resHandler        The original callback provided to the read method
+   *
+   **/
   void onReadFromInterface(char *const &out,
                            const SizeType& totalRequired,
                            const SizeType& totalRead,
@@ -125,6 +141,7 @@ private:
                            const IOInterface& ioInterface,
                            const ReadResultHandler& resHandler)
   {
+    // The IOINterface can no longer give any data, close the async read loop here
     if (!bytesInThisIOCall)
     {
       resHandler(totalRead);
@@ -138,6 +155,8 @@ private:
       copy(out + totalRead, toCopy);
       totalLeftToRead -= toCopy;
 
+      // If all requested bytes have been read, then close the async loop and
+      // notify the externally provided callback
       if (!totalLeftToRead)
       {
         resHandler(totalRequired);
@@ -145,6 +164,9 @@ private:
       else
       {
         SizeType lengthTillEnd = m_size - m_head;
+        // The memory provided to the external interface should be contiguous
+        // So even if our buffer has a lot of memory, but it's fragmented,
+        // we have to read into the part that spans from m_head to the end of buffer
         SizeType toRead = std::min(lengthTillEnd, freeBytes());
 
         ioInterface(m_readBuff + m_head,
