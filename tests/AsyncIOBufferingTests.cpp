@@ -247,19 +247,19 @@ protected:
       uint32_t expectedLen = atoll((char*)num);
       readHead += 2;
       buffer.write(outBuff + readHead,
-                  atoll((char*)num),
-                  [&, expectedLen](const uint32_t &len)
-                  {
-                    if(len < expectedLen) return;
+                   atoll((char *)num),
+                   [&, expectedLen](const uint32_t &len)
+                   {
+                     if (len < expectedLen) return;
 
-                    readHead += len;
-                    onMsgWritten();
-                  });
+                     readHead += len;
+                     onMsgWritten();
+                   });
     };
 
     w1.push(writeMsg);
 
-    // 1 second should be enough for all the reads to happen
+    // 1 second should be enough for all the writes to happen
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
@@ -398,8 +398,6 @@ TEST_F(AsyncBufferTest, SearialWrites)
 
   EXPECT_EQ(totalIOCalls, 4);
   EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
-
-  delete[] outBuff;
 }
 
 int main(int argc, char **argv)
