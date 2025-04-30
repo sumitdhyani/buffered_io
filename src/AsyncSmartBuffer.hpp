@@ -356,7 +356,7 @@ struct AsyncIOWriteBuffer
   AsyncIOWriteBuffer(AsyncIOWriteBuffer &&) = delete;
   AsyncIOWriteBuffer &operator=(AsyncIOWriteBuffer &&) = delete;
 
-  void write(char *const &out,
+  void write(const char* out,
              const SizeType &len,
              const WriteResultHandler &resHandler)
   {
@@ -370,7 +370,7 @@ struct AsyncIOWriteBuffer
     put(out, toPut);
     SizeType lengthTillEnd = m_size - m_tail;
     SizeType toWrite = std::min(occupiedBytes(), lengthTillEnd);
-    ioInterface(m_outBuff,
+    m_ioInterface(m_outBuff,
                 toWrite,
                 [this, out, resHandler, len](const SizeType &writeLen)
                 {
@@ -383,7 +383,7 @@ struct AsyncIOWriteBuffer
   }
 
 private:
-  void onWriteToInterface(char *const &out,
+  void onWriteToInterface(const char* out,
                           const SizeType &totalRequired,
                           const SizeType &totalWritten,
                           const SizeType &bytesInThisIOCall,
@@ -425,11 +425,11 @@ private:
                       toWrite,
                       [this, out, totalRequired, bytesInThisIOCall, totalWritten, resHandler](const SizeType &writeLen)
                       {
-                        onReadFromInterface(out,
-                                            totalRequired,
-                                            totalWritten + bytesInThisIOCall,
-                                            writeLen,
-                                            resHandler);
+                        onWriteToInterface(out,
+                                           totalRequired,
+                                           totalWritten + bytesInThisIOCall,
+                                           writeLen,
+                                           resHandler);
                       });
       }
     }
