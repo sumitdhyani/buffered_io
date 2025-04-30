@@ -262,6 +262,19 @@ TEST_F(BufferTest, ReadUntilAndEnderNotFound_WithPredicate)
   EXPECT_EQ(strncmp(output, mockInput.c_str(), mockInput.length()), 0);
 }
 
+TEST_F(BufferTest, Write_BufferSizeLessThanWriteSize)
+{
+  SyncIOLazyWriteBuffer<uint32_t> buffer(1, [this](const char *buff, uint32_t len)
+                                            { return mockWriter(buff, len); });
+  const char *data = "Hello";
+
+  buffer.write(data, strlen(data));
+  EXPECT_EQ(smartOutput, "Hell");
+
+  buffer.flush();
+  EXPECT_EQ(smartOutput, "Hello");
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

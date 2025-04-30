@@ -514,7 +514,7 @@ struct SyncIOLazyWriteBuffer
     bool flushfailed = false;
     for (SizeType freeBytesBeforePut = freeBytes();
          freeBytesBeforePut < remainingLen && !flushfailed;
-         flushfailed = flush(), freeBytesBeforePut = freeBytes())
+         flushfailed = !flush(), freeBytesBeforePut = freeBytes())
     {
       put(out, freeBytesBeforePut);
       remainingLen -= freeBytesBeforePut;
@@ -539,10 +539,10 @@ struct SyncIOLazyWriteBuffer
     }
 
     SizeType ret = 0;
-    if (m_tail < m_head)
+    if (m_tail <= m_head)
     {
       ret = m_ioInterface(m_outBuff + m_tail, occupiedBytes());
-      m_tail += ret;
+      m_tail += (m_tail + ret) % m_size;
     }
     else
     {
@@ -599,7 +599,7 @@ private:
         len <= m_size - m_head)
     {
       memcpy(m_outBuff + m_head, outData, len);
-      m_head += len;
+      m_head = (m_head + len) % m_size;
     }
     else
     {
