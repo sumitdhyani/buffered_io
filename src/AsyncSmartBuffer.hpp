@@ -290,3 +290,203 @@ void
   const SizeType m_size;
   char *const m_readBuff;
 };
+
+// SizeType should be an unsigned integral type
+template <class SizeType>
+requires std::unsigned_integral<SizeType>
+struct AsyncIOWriteBuffer
+{
+  typedef std::function<void(const SizeType &)> WriteResultHandler;
+  typedef std::function<void(const char *, const SizeType &, const WriteResultHandler &)> IOInterface;
+  enum class LastOperation
+  {
+    WRITE,
+    PUT,
+    NONE
+  };
+
+  /**
+   *  Constructor
+   *  @param size Size of the Buffer
+   *              If 0 is given as size, size is deemed to be 1
+   **/
+  AsyncIOWriteBuffer(const SizeType &size, const IOInterface& ioInterface):
+    m_outBuff(reinterpret_cast<char *>(!size ? malloc(1) : malloc(size))),
+    m_tail(0),
+    m_head(0),
+    m_size(size),
+    m_ioInterface(ioInterface),
+    m_lastOperation(LastOperation::NONE)
+  {}
+
+  bool empty()
+  {
+    return occupiedBytes() == 0;
+  }
+
+  bool full()
+  {
+    return freeBytes() == 0;
+  }
+
+  SizeType size()
+  {
+    return occupiedBytes();
+  }
+
+  SizeType capacity()
+  {
+    return m_size;
+  }
+
+  SizeType vacancy()
+  {
+    return freeBytes();
+  }
+
+  ~AsyncIOWriteBuffer()
+  {
+    free(m_outBuff);
+  }
+
+  // Non copyable-assignable, Non moveable-move assinable for the reasons of
+  // Simplicity
+  AsyncIOWriteBuffer(const AsyncIOWriteBuffer &) = delete;
+  AsyncIOWriteBuffer &operator=(const AsyncIOWriteBuffer &) = delete;
+  AsyncIOWriteBuffer(AsyncIOWriteBuffer &&) = delete;
+  AsyncIOWriteBuffer &operator=(AsyncIOWriteBuffer &&) = delete;
+
+  void write(char *const &out,
+             const SizeType &len,
+             const WriteResultHandler &resHandler)
+  {
+    if (!len)
+    {
+      resHandler(0);
+      return;
+    }
+
+    SizeType toPut = std::min(m_size, len);
+    put(out, toPut);
+    SizeType lengthTillEnd = m_size - m_tail;
+    SizeType toWrite = std::min(occupiedBytes(), lengthTillEnd);
+    ioInterface(m_outBuff,
+                toWrite,
+                [this, out, resHandler, len](const SizeType &writeLen)
+                {
+                  onWriteToInterface(out,
+                                     len,
+                                     writeLen,
+                                     writeLen,
+                                     resHandler);
+                });
+  }
+
+private:
+  void onWriteToInterface(char *const &out,
+                          const SizeType &totalRequired,
+                          const SizeType &totalWritten,
+                          const SizeType &bytesInThisIOCall,
+                          const WriteResultHandler &resHandler)
+  {
+    // The IOINterface can no longer give any data, close the async read loop here
+    if (!bytesInThisIOCall)
+    {
+      resHandler(totalWritten);
+    }
+    else
+    {
+      m_tail = (m_tail + bytesInThisIOCall) % m_size;
+      m_lastOperation = LastOperation::WRITE;
+      if (!occupiedBytes())
+      {
+        m_tail = m_head = 0;
+      }
+
+      SizeType totalLeftToWrite = totalRequired - totalWritten;
+      SizeType toPut = std::min(totalLeftToWrite, freeBytes());
+      put(out + totalWritten, toPut);
+
+      // If all requested bytes have been read, then close the async loop and
+      // notify the externally provided callback
+      if (!totalLeftToWrite)
+      {
+        resHandler(totalRequired);
+      }
+      else
+      {
+        SizeType lengthTillEnd = m_size - m_tail;
+        // The memory provided to the external interface should be contiguous
+        // So even if our buffer's memory is fragmented,
+        // we have to write the part that spans from m_tail to the end of buffer
+        SizeType toWrite = std::min(lengthTillEnd, occupiedBytes());
+
+        m_ioInterface(m_outBuff + m_tail,
+                      toWrite,
+                      [this, out, totalRequired, bytesInThisIOCall, totalWritten, resHandler](const SizeType &writeLen)
+                      {
+                        onReadFromInterface(out,
+                                            totalRequired,
+                                            totalWritten + bytesInThisIOCall,
+                                            writeLen,
+                                            resHandler);
+                      });
+      }
+    }
+  }
+
+  void put(const char *outData, const SizeType &len)
+  {
+    if (!len)
+    {
+      return;
+    }
+
+    if (m_head < m_tail ||
+        len <= m_size - m_head)
+    {
+      memcpy(m_outBuff + m_head, outData, len);
+      m_head += len;
+    }
+    else
+    {
+      const SizeType l1 = m_size - m_head;
+      const SizeType l2 = len - l1;
+      memcpy(m_outBuff + m_head, outData, l1);
+      memcpy(m_outBuff, outData + l1, l2);
+      m_head = l2;
+    }
+
+    m_lastOperation = LastOperation::PUT;
+  }
+
+  SizeType occupiedBytes()
+  {
+    if (m_tail == m_head)
+    {
+      // In this case m_lastOperation == LastOperation::WRITE means that the
+      // buffer is completely onoccupied, otherwise it's completely free
+      return m_lastOperation == LastOperation::WRITE ? 0 : m_size;
+    }
+    else if (m_tail < m_head)
+    {
+      return m_head - m_tail;
+    }
+    else
+    {
+      return m_size - (m_tail - m_head);
+    }
+  }
+
+  SizeType freeBytes()
+  {
+    return m_size - occupiedBytes();
+  }
+
+  IOInterface m_ioInterface;
+  LastOperation m_lastOperation;
+  SizeType m_tail;
+  SizeType m_head;
+  const SizeType m_size;
+  char *const m_outBuff;
+};
