@@ -1,5 +1,8 @@
 #pragma once
 #include <concepts>
+#include <tuple>
+#include <queue>
+#include <list>
 #include <functional>
 #include <optional>
 #include <string.h>
@@ -293,13 +296,21 @@ void
 
 // SizeType should be an unsigned integral type
 template <class SizeType>
-requires std::unsigned_integral<SizeType>
 struct AsyncIOWriteBuffer
 {
   typedef std::function<void(const SizeType &)> WriteResultHandler;
   typedef std::function<void(const char *, const SizeType &, const WriteResultHandler &)> IOInterface;
-  enum class LastOperation
-  {
+
+  typedef std::tuple<const char *,       // Input buffer
+                     const SizeType,     // Originally requested length
+                     SizeType,           // Number of already put bytes
+                     SizeType,           // Number if already sent bytes
+                     WriteResultHandler> // Externally provided callback
+      PendingWriteRequest;
+
+  typedef std::list<PendingWriteRequest> PendingWriteQueue;
+
+  enum class LastOperation {
     WRITE,
     PUT,
     NONE
@@ -316,7 +327,8 @@ struct AsyncIOWriteBuffer
     m_head(0),
     m_size(size),
     m_ioInterface(ioInterface),
-    m_lastOperation(LastOperation::NONE)
+    m_lastOperation(LastOperation::NONE),
+    m_writeLoopOn(false)
   {}
 
   bool empty()
@@ -366,73 +378,99 @@ struct AsyncIOWriteBuffer
       return;
     }
 
-    SizeType toPut = std::min(m_size, len);
+    uint32_t toPut = std::min(len, freeBytes());
     put(out, toPut);
-    SizeType lengthTillEnd = m_size - m_tail;
-    SizeType toWrite = std::min(occupiedBytes(), lengthTillEnd);
-    m_ioInterface(m_outBuff,
-                toWrite,
-                [this, out, resHandler, len](const SizeType &writeLen)
-                {
-                  onWriteToInterface(out,
-                                     len,
-                                     writeLen,
-                                     writeLen,
-                                     resHandler);
-                });
+    m_pendingWriteQueue.push_back({out, len, toPut, 0, resHandler});
+
+    if (m_writeLoopOn)
+    {
+      return;
+    }
+
+    uint32_t lengthTillEnd = m_size - m_tail;
+    uint32_t toWrite = std::min(occupiedBytes(), lengthTillEnd);
+
+    m_writeLoopOn = true;
+    m_ioInterface(m_outBuff + m_tail,
+                  toWrite,
+                  [this](const SizeType &writeLen)
+                  {
+                    onWriteToInterface(writeLen);
+                  });
   }
 
 private:
-  void onWriteToInterface(const char* out,
-                          const SizeType &totalRequired,
-                          const SizeType &totalWritten,
-                          const SizeType &bytesInThisIOCall,
-                          const WriteResultHandler &resHandler)
+  void onWriteToInterface(const SizeType& bytesInThisIOCall)
   {
-    // The IOINterface can no longer give any data, close the async read loop here
+    // The IOINterface can no longer give any data,
+    // notify the pending callbacks with the already sent data and
+    // close the async read loop here
     if (!bytesInThisIOCall)
     {
-      resHandler(totalWritten);
+      for (auto it = m_pendingWriteQueue.begin();
+           it != m_pendingWriteQueue.end();
+           ++it)
+      {
+        auto &[buff, len, alreadyPut, alreadySent, resHandler] = *it;
+        resHandler(alreadySent);
+      }
+
+      m_pendingWriteQueue.clear();
+      m_writeLoopOn = false;
+      return;
     }
-    else
+
+
+    // Update the m_tail pointer
+    m_tail = (m_tail + bytesInThisIOCall) % m_size;
+    m_lastOperation = LastOperation::WRITE;
+    if (!occupiedBytes())
     {
-      m_tail = (m_tail + bytesInThisIOCall) % m_size;
-      m_lastOperation = LastOperation::WRITE;
-      if (!occupiedBytes())
-      {
-        m_tail = m_head = 0;
-      }
-
-      SizeType totalLeftToWrite = totalRequired - totalWritten;
-      SizeType toPut = std::min(totalLeftToWrite, freeBytes());
-      put(out + totalWritten, toPut);
-
-      // If all requested bytes have been read, then close the async loop and
-      // notify the externally provided callback
-      if (!totalLeftToWrite)
-      {
-        resHandler(totalRequired);
-      }
-      else
-      {
-        SizeType lengthTillEnd = m_size - m_tail;
-        // The memory provided to the external interface should be contiguous
-        // So even if our buffer's memory is fragmented,
-        // we have to write the part that spans from m_tail to the end of buffer
-        SizeType toWrite = std::min(lengthTillEnd, occupiedBytes());
-
-        m_ioInterface(m_outBuff + m_tail,
-                      toWrite,
-                      [this, out, totalRequired, bytesInThisIOCall, totalWritten, resHandler](const SizeType &writeLen)
-                      {
-                        onWriteToInterface(out,
-                                           totalRequired,
-                                           totalWritten + bytesInThisIOCall,
-                                           writeLen,
-                                           resHandler);
-                      });
-      }
+      m_head = m_tail = 0;
     }
+
+    // Notify all the pending callabacks whose complete data has ben sent
+    uint32_t remainingLen = bytesInThisIOCall;
+    while (remainingLen && !m_pendingWriteQueue.empty())
+    {
+      auto& [buff, len, alreadyPut, alreadySent, resHandler] = *m_pendingWriteQueue.begin();
+      uint32_t toIncrease = std::min(remainingLen, len - alreadySent);
+      alreadySent += toIncrease;
+      if (alreadySent == len)
+      {
+        resHandler(len);
+        m_pendingWriteQueue.pop_front();
+      }
+      remainingLen -= toIncrease;
+    }
+
+    // If all pending callbacks have been notifed, then close the async loop
+    if (m_pendingWriteQueue.empty())
+    {
+      m_writeLoopOn = false;
+      return;
+    }
+
+    // Put all the data you can in the in the buffer 
+    for (auto it = m_pendingWriteQueue.begin();
+        freeBytes() && it != m_pendingWriteQueue.end();
+        ++it)
+    {
+      auto &[buff, len, alreadyPut, alreadySent, resHandler] = *it;
+      uint32_t toPut = std::min(len - alreadyPut, freeBytes());
+      put(buff + alreadyPut, toPut);
+      alreadyPut += toPut;
+    }
+
+    uint32_t lengthTillEnd = m_size - m_tail;
+    uint32_t toWrite = std::min(occupiedBytes(), lengthTillEnd);
+
+    m_ioInterface(m_outBuff + m_tail,
+                  toWrite,
+                  [this](const SizeType &writeLen)
+                  {
+                    onWriteToInterface(writeLen);
+                  });
   }
 
   void put(const char *outData, const SizeType &len)
@@ -466,7 +504,7 @@ private:
     {
       // In this case m_lastOperation == LastOperation::WRITE means that the
       // buffer is completely onoccupied, otherwise it's completely free
-      return m_lastOperation == LastOperation::WRITE ? 0 : m_size;
+      return m_lastOperation == LastOperation::PUT ? m_size : 0;
     }
     else if (m_tail < m_head)
     {
@@ -483,6 +521,8 @@ private:
     return m_size - occupiedBytes();
   }
 
+  bool m_writeLoopOn;
+  PendingWriteQueue m_pendingWriteQueue;
   IOInterface m_ioInterface;
   LastOperation m_lastOperation;
   SizeType m_tail;

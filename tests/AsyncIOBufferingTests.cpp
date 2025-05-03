@@ -228,36 +228,22 @@ protected:
   void writeMsgs(AsyncIOWriteBuffer<uint32_t> &buffer,
                  const char *outBuff)
   {
-    std::function<void()> writeMsg = []() {};
-    uint32_t readHead = 0;
-
-    auto onMsgWritten =
+    auto func =
     [&]()
     {
-      writeMsg();
+      const char *readHead = outBuff;
+      while (*readHead != '\0')
+      {
+        char num[3]{0};
+        memcpy(num, readHead, 2);
+        uint32_t expectedLen = atoll((char *)num);
+        readHead += 2;
+        buffer.write(readHead, expectedLen, [readHead, expectedLen](const uint32_t&) {});
+        readHead += expectedLen;
+      }
     };
 
-    writeMsg =
-    [&]()
-    {
-      if(outBuff[readHead] == '\0') return;
-
-      char num[3]{0};
-      memcpy(num, outBuff + readHead, 2);
-      uint32_t expectedLen = atoll((char*)num);
-      readHead += 2;
-      buffer.write(outBuff + readHead,
-                   atoll((char *)num),
-                   [&, expectedLen](const uint32_t &len)
-                   {
-                     if (len < expectedLen) return;
-
-                     readHead += len;
-                     onMsgWritten();
-                   });
-    };
-
-    w1.push(writeMsg);
+    w1.push(func);
 
     // 1 second should be enough for all the writes to happen
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -396,7 +382,7 @@ TEST_F(AsyncBufferTest, SearialWrites)
 
   writeMsgs(buffer, outBuff);
 
-  EXPECT_EQ(totalIOCalls, 4);
+  EXPECT_EQ(totalIOCalls, 2);
   EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
 }
 
