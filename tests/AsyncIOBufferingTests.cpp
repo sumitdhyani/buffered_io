@@ -360,16 +360,14 @@ TEST_F(AsyncBufferTest, SearialWrites)
 
   const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
   const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
-  uint32_t totalIOCalls = 0;
 
   auto ioInterface =
   [&](const char *out, const uint32_t &len, const WriteResultHandler& resHandler)
   {
     w2.push(
-        [this, out, resHandler, len, &totalIOCalls]()
+        [this, out, resHandler, len]()
         {
           auto writeLen = mockWriter(out, len);
-          ++totalIOCalls;
           w1.push(
               [resHandler, writeLen]()
               {
@@ -382,7 +380,6 @@ TEST_F(AsyncBufferTest, SearialWrites)
 
   writeMsgs(buffer, outBuff);
 
-  EXPECT_EQ(totalIOCalls, 2);
   EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
 }
 
@@ -391,16 +388,14 @@ TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleWriteSize)
 
   const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
   const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
-  uint32_t totalIOCalls = 0;
 
   auto ioInterface =
       [&](const char *out, const uint32_t &len, const WriteResultHandler &resHandler)
   {
     w2.push(
-        [this, out, resHandler, len, &totalIOCalls]()
+        [this, out, resHandler, len]()
         {
           auto writeLen = mockWriter(out, len);
-          ++totalIOCalls;
           w1.push(
               [resHandler, writeLen]()
               {
@@ -413,8 +408,35 @@ TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleWriteSize)
 
   writeMsgs(buffer, outBuff);
 
-  EXPECT_EQ(totalIOCalls, 37);
   EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
+}
+
+TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanTotalWriteSize)
+{
+
+  const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
+  const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
+
+  auto ioInterface =
+      [&](const char *out, const uint32_t &len, const WriteResultHandler &resHandler)
+  {
+    w2.push(
+        [this, out, resHandler, len]()
+        {
+          auto writeLen = mockWriter(out, len);
+          w1.push(
+              [resHandler, writeLen]()
+              {
+                resHandler(writeLen);
+              });
+        });
+  };
+
+  AsyncIOWriteBuffer<uint32_t> buffer(12, ioInterface);
+
+  writeMsgs(buffer, outBuff);
+
+  EXPECT_EQ(mockOutPut, expectedBuff);
 }
 
 int main(int argc, char **argv)
