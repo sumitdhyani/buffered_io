@@ -239,22 +239,19 @@ protected:
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  // Msgs are assumed to be in the format: <2 bytes for header, that contains msgLength><msg content>
+  // Msgs are assumed to be in the format: <msg content>|
   void writeMsgs(AsyncIOWriteBuffer<uint32_t> &buffer,
-                 const char *outBuff)
+                 const std::string& outBuff)
   {
     auto func =
     [&]()
     {
-      const char *readHead = outBuff;
-      while (*readHead != '\0')
+      uint32_t start = 0;
+      while (outBuff[start] != '\0')
       {
-        char num[3]{0};
-        memcpy(num, readHead, 2);
-        uint32_t expectedLen = atoll((char *)num);
-        readHead += 2;
-        buffer.write(readHead, expectedLen, [readHead, expectedLen](const uint32_t&) {});
-        readHead += expectedLen;
+        uint32_t end = outBuff.find('|', start);
+        buffer.write(outBuff.c_str() + start,  end - start, [](const uint32_t&) {});
+        start = end + 1;
       }
     };
 
@@ -378,8 +375,8 @@ TEST_F(AsyncBufferTest, SearialWrites)
                                         mockAysyncIOInterface(out, len, resHandler);
                                       });
 
-  const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
-  const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
+  const std::string outBuff = "HelloWorld|ByeWorld|HaleLujah|JaiShriRam|";
+  const std::string expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
 
   writeMsgs(buffer, outBuff);
 
@@ -394,12 +391,12 @@ TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleWriteSize)
                                         mockAysyncIOInterface(out, len, resHandler);
                                       });
 
-  const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
-  const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
+  const std::string outBuff = "HelloWorld|ByeWorld|HaleLujah|JaiShriRam|";
+  const std::string expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
 
   writeMsgs(buffer, outBuff);
 
-  EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
+  EXPECT_EQ(mockOutPut, expectedBuff);
 }
 
 TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanTotalWriteSize)
@@ -410,8 +407,8 @@ TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanTotalWriteSize)
                                         mockAysyncIOInterface(out, len, resHandler);
                                       });
 
-  const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
-  const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
+  const std::string outBuff = "HelloWorld|ByeWorld|HaleLujah|JaiShriRam|";
+  const std::string expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
 
   writeMsgs(buffer, outBuff);
 
