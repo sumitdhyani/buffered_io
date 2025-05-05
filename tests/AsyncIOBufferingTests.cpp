@@ -150,11 +150,26 @@ protected:
     return toCopy;
   }
 
-  // Mock writer for SmartIOTest
   uint32_t mockWriter(const char *buf, uint32_t len)
   {
     mockOutPut.append(buf, len);
     return len;
+  }
+
+  void mockAysyncIOInterface(const char *out,
+                             const uint32_t& len,
+                             const WriteResultHandler& resHandler)
+  {
+    w2.push(
+        [this, out, resHandler, len]()
+        {
+          auto writeLen = mockWriter(out, len);
+          w1.push(
+              [resHandler, writeLen]()
+              {
+                resHandler(writeLen);
+              });
+        });
   }
 
   // Msgs are assumed to be in the format: <2 bytes for header, that contains msgLength><msg content>
@@ -357,54 +372,30 @@ TEST_F(AsyncBufferTest, ReadSizeGreaterThanBufferSize)
 
 TEST_F(AsyncBufferTest, SearialWrites)
 {
+  AsyncIOWriteBuffer<uint32_t> buffer(200,
+                                      [this](const char *out, const uint32_t &len, const WriteResultHandler& resHandler)
+                                      {
+                                        mockAysyncIOInterface(out, len, resHandler);
+                                      });
 
   const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
   const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
 
-  auto ioInterface =
-  [&](const char *out, const uint32_t &len, const WriteResultHandler& resHandler)
-  {
-    w2.push(
-        [this, out, resHandler, len]()
-        {
-          auto writeLen = mockWriter(out, len);
-          w1.push(
-              [resHandler, writeLen]()
-              {
-                resHandler(writeLen);
-              });
-        });
-  };
-
-  AsyncIOWriteBuffer<uint32_t> buffer(200, ioInterface);
-
   writeMsgs(buffer, outBuff);
 
-  EXPECT_EQ(mockOutPut.compare(std::string(expectedBuff)), 0);
+  EXPECT_EQ(mockOutPut, expectedBuff);
 }
 
 TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleWriteSize)
 {
+  AsyncIOWriteBuffer<uint32_t> buffer(1,
+                                      [this](const char *out, const uint32_t &len, const WriteResultHandler &resHandler)
+                                      {
+                                        mockAysyncIOInterface(out, len, resHandler);
+                                      });
 
   const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
   const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
-
-  auto ioInterface =
-      [&](const char *out, const uint32_t &len, const WriteResultHandler &resHandler)
-  {
-    w2.push(
-        [this, out, resHandler, len]()
-        {
-          auto writeLen = mockWriter(out, len);
-          w1.push(
-              [resHandler, writeLen]()
-              {
-                resHandler(writeLen);
-              });
-        });
-  };
-
-  AsyncIOWriteBuffer<uint32_t> buffer(1, ioInterface);
 
   writeMsgs(buffer, outBuff);
 
@@ -413,26 +404,14 @@ TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanEverySingleWriteSize)
 
 TEST_F(AsyncBufferTest, SearialWrites_BufferSizeLessThanTotalWriteSize)
 {
+  AsyncIOWriteBuffer<uint32_t> buffer(12,
+                                      [this](const char *out, const uint32_t &len, const WriteResultHandler &resHandler)
+                                      {
+                                        mockAysyncIOInterface(out, len, resHandler);
+                                      });
 
   const char *outBuff = "10HelloWorld08ByeWorld09HaleLujah10JaiShriRam";
   const char *expectedBuff = "HelloWorldByeWorldHaleLujahJaiShriRam";
-
-  auto ioInterface =
-      [&](const char *out, const uint32_t &len, const WriteResultHandler &resHandler)
-  {
-    w2.push(
-        [this, out, resHandler, len]()
-        {
-          auto writeLen = mockWriter(out, len);
-          w1.push(
-              [resHandler, writeLen]()
-              {
-                resHandler(writeLen);
-              });
-        });
-  };
-
-  AsyncIOWriteBuffer<uint32_t> buffer(12, ioInterface);
 
   writeMsgs(buffer, outBuff);
 
