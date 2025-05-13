@@ -242,6 +242,9 @@ SyncIOReadBuffer and SyncIOLazyWriteBuffer are powerful tools for mastering I/O 
 
 So, next time you’re tackling a performance-critical I/O problem in C++, give these classes a spin. Experiment with buffer sizes, test them against your own workloads, and share your results with the community. Happy coding!
 
+## See also:
+For Asynchronous interface, see classes "AsyncIOReadBuffer" and "AsyncIOWriteBuffer" defined in the file src/AsyncSmartBuffer.hpp
+
 ## Limitations/shortfalls to consider:
 -   Error Handling:
     -   They don’t handle I/O errors natively—you’d need a wrapper or additional logic for robustness.The client code functions has to kake care if the IOInterface throws/returns errors.
@@ -257,9 +260,6 @@ So, next time you’re tackling a performance-critical I/O problem in C++, give 
                    The "lazy" write approach in the "SyncIOLazyWriteBuffer" class writes to IO-Interface only when the buffer is full, this will yield high throughput but can add to latency as a side-effect
                    This is fine for applications like file transfer etc., but can impact real-time applications like audio/video streamimng.
                    The user of this call can mitigate this by regularly calling **flush()** methi\od when the buffer has reached certain size
-
-## Next steps:
--   Code new classes for doing Buffered IO with asynchronous IO Interfaces.
 
 ## Github:
 -   **Complete repo:<br>**

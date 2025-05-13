@@ -48,4 +48,4 @@ Tested with 100k test cases (1 KB buffer):
 **Machine:**        Intel i5-7300U, 8GB RAM, Windows 10 Pro
 
 ## Details
-Read the full article(docs/TECHNICAL_DETAILS.md)  for implementation details, examples, and limitations.
+Read the full article(docs/TECHNICAL_DETAILS.md) for implementation details, examples, and limitations.
